@@ -61,6 +61,7 @@ void HttpResponse::Init(const string& srcDir, string& path, bool isKeepAlive, in
     srcDir_ = srcDir;
     mmFile_ = nullptr;
     mmFileState_ = { 0 };
+//    cout << path_ << endl;
 }
 
 void HttpResponse::MakeResponse(Buffer& buff) {

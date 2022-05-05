@@ -8,6 +8,7 @@
 #include <semaphore.h>
 #include <thread>
 #include <assert.h>
+#include <iostream>
 
 class SqlConnPool {
 public:

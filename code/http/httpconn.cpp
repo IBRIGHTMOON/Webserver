@@ -91,6 +91,7 @@ bool HttpConn::process() {
     if (readBuff_.readableBytes() <= 0) {
         return false;
     } else if (request_.parse(readBuff_)) {
+//        cout << request_.post_;
         response_.Init(srcDir, request_.path(), request_.IsKeepAlive(), 200);
     } else {
         response_.Init(srcDir, request_.path(), false, 400);

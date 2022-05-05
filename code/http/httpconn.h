@@ -59,6 +59,7 @@ private:
     Buffer readBuff_;
     Buffer writeBuff_;
 
+public:
     HttpRequest request_;
     HttpResponse response_;
 };

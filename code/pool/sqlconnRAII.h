@@ -11,7 +11,7 @@ public:
         connpool_ = connpool;
     }
 
-    SqlConnRAII() {
+    ~SqlConnRAII() {
         if (sql_) {
             connpool_->FreeConn(sql_);
         }

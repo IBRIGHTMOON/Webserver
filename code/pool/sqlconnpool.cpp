@@ -30,6 +30,7 @@ MYSQL* SqlConnPool::GetConn() {
     MYSQL* sql = nullptr;
     if (connQue_.empty()) {
         return nullptr;
+        //sem_wait(&semId_);
     }
     sem_wait(&semId_);
     {
@@ -37,6 +38,7 @@ MYSQL* SqlConnPool::GetConn() {
         sql = connQue_.front();
         connQue_.pop();
     }
+ //   std::cout << "get a mysql" << std::endl;
     return sql;
 }
 

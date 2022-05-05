@@ -12,7 +12,8 @@ WebServer::WebServer(int port, int trigMode, int timeoutMS, bool OptLinger,
     strncat(srcDir_, "/resources/", 16);
     HttpConn::userCount = 0;
     HttpConn::srcDir = srcDir_;
-    SqlConnPool::Instance()->Init("localhost", sqlPort, sqlUser, sqlPwd, dbName, connPoolNum);
+    connpool = SqlConnPool::Instance();
+    connpool->Init("localhost", sqlPort, sqlUser, sqlPwd, dbName, connPoolNum);
 
     InitEventMode_(trigMode);
     if (!InitSocket_()) {
@@ -69,9 +70,11 @@ void WebServer::Start() {
                 CloseConn_(&users_[fd]);
             } else if (events & EPOLLIN) {
                 assert(users_.count(fd) > 0);
+//                cout << "read" << endl;
                 DealRead_(&users_[fd]);
             } else if (events & EPOLLOUT) {
                 assert(users_.count(fd) > 0);
+//                cout << "write" << endl;
                 DealWrite_(&users_[fd]);
             }
         }
@@ -137,11 +140,13 @@ void WebServer::OnRead_(HttpConn* client) {
     assert(client);
     int ret = -1;
     int readErrno = 0;
+    client->request_.InitMysqlResult(connpool);
     ret = client->read(&readErrno);
     if (ret <= 0 && readErrno != EAGAIN) {
         CloseConn_(client);
         return;
     }
+//    cout << "read success" << endl;
     OnProcess(client);
 }
 
@@ -175,7 +180,12 @@ void WebServer::OnWrite_(HttpConn* client) {
 bool WebServer::InitSocket_() {
     int ret;
     struct sockaddr_in addr;
+    /*
     if(port_ > 65535 || port_ < 1024) {
+        return false;
+    }
+    */
+    if (port_ > 65535) {
         return false;
     }
     addr.sin_family = AF_INET;

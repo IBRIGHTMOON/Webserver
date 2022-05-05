@@ -27,6 +27,8 @@ public:
 
     void Start();
 
+    SqlConnPool* connpool;
+
 private:
     bool InitSocket_();
     void InitEventMode_(int tirgMode);

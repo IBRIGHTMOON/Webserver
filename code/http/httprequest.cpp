@@ -1,6 +1,8 @@
 #include "httprequest.h"
 using namespace std;
 
+std::unordered_map<std::string, std::string> users;
+
 const unordered_set<string> HttpRequest::DEFAULT_HTML {
     "/index", "/register", "/login", "/music",
     "/welecome", "/video", "/picture",
@@ -17,9 +19,36 @@ void HttpRequest::Init() {
     post_.clear();
 }
 
+void HttpRequest::InitMysqlResult(SqlConnPool* connpool) {
+    // 先从连接池中取出一个连接
+    MYSQL* mysql = nullptr;
+    SqlConnRAII mysqlconn(&mysql, connpool); 
+    // 在user表中检索username，password数据
+    if (mysql_query(mysql, "select username, password from user")) {
+        return;
+    }
+
+    // 从表中检索完整的结果集
+    MYSQL_RES* result = mysql_store_result(mysql);
+
+    // 返回结果集中的列数
+    int num_fileds = mysql_num_fields(result);
+
+    // 返回所有字段结构的数组
+    MYSQL_FIELD* fields = mysql_fetch_fields(result);
+
+    // 从结果集中获取下一行，将对应的用户名和密码存入map中
+    while (MYSQL_ROW row = mysql_fetch_row(result)) {
+        string temp1(row[0]);
+        string temp2(row[1]);
+        users[temp1] = temp2;
+        //cout << temp1 << " " << temp2 << endl;
+    }
+}
+
 bool HttpRequest::IsKeepAlive() const {
-    if (header_.count("Connection") == 1) {
-        return header_.find("Connection")->second == "keep-alive" && version_ == "1.1";
+    if (header_.count("Proxy-Connection") == 1) {
+        return header_.find("Proxy-Connection")->second == "keep-alive" && version_ == "1.1";
     }
     return false;
 }
@@ -108,13 +137,16 @@ int HttpRequest::ConverHex(char ch) {
 
 void HttpRequest::ParsePost_() {
     if (method_ == "POST" && header_["Content-Type"] == "application/x-www-form-urlencoded") {
+    //if (method_ == "POST") {
         ParseFromeUrlencoded_();
         if (DEFAULT_HTML_TAG.count(path_)) {
             int tag = DEFAULT_HTML_TAG.find(path_)->second;
             if (tag == 0 || tag == 1) {
                 bool isLogin = (tag == 1);
-                if (UserVerify(post_["username"], post_["password"], isLogin)) {
-                    path_ = "/welcome.html";
+                int flag = UserVerify(post_["username"], post_["password"], isLogin);
+                if (flag) {
+                    if (flag == 1) path_ = "/welcome.html";
+                    else if (flag == 2) path_ = "/login.html";
                 } else {
                     path_ = "/error.html";
                 }
@@ -163,52 +195,33 @@ void HttpRequest::ParseFromeUrlencoded_() {
     }
 }
 
-bool HttpRequest::UserVerify(const string& name, const string& pwd, bool isLogin) {
+
+int HttpRequest::UserVerify(const string& name, const string& pwd, bool isLogin) {
     if (name == "" || pwd == "") return false;
-    MYSQL* sql;
-    SqlConnRAII(&sql, SqlConnPool::Instance());
-    assert(sql);
 
-    bool flag = false;
+    int flag = 0;
     char order[256] = { 0 };
-    MYSQL_RES* res = nullptr;
-
-    if (!isLogin) flag = true;
-    // 查询用户名，密码
-    snprintf(order, 256, "select username, password from user where username='%s' limit 1", name.c_str());
-
-    if (mysql_query(sql, order)) {
-        mysql_free_result(res);
-        return false;
-    }
-    res = mysql_store_result(sql);
-    mysql_num_fields(res);
-    mysql_fetch_field(res);
-
-    while (MYSQL_ROW row = mysql_fetch_row(res)) {
-        string password(row[1]);
-        // 登录
-        if (isLogin) {
-            if (pwd == password) flag = true;
-            else {
-                flag = false;
-            }
+    if (isLogin) {
+        if (users.count(name) && users[name] == pwd) {
+            flag = 1;
         } else {
-            flag = false;
+            flag = 0;
         }
-    }
-    mysql_free_result(res);
-
-    // 注册
-    if (!isLogin && flag == true) {
+    } else {
+        MYSQL* sql;
+        SqlConnRAII(&sql, SqlConnPool::Instance());
+        assert(sql);
         bzero(order, 256);
+//        cout << "qian" << endl;
         snprintf(order, 256, "insert into user(username, password) values('%s', '%s')", name.c_str(), pwd.c_str());
+//        cout << "hou" << endl;
         if (mysql_query(sql, order)) {
-            flag = false;
+            flag = 0;
         }
-        flag = true;
+        flag = 2;
+        SqlConnPool::Instance()->FreeConn(sql);
     }
-    SqlConnPool::Instance()->FreeConn(sql);
+    
     return flag;
 }
 
